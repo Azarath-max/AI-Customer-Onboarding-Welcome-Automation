@@ -1,0 +1,730 @@
+{
+  "name": "AI Customer Onboarding Welcome Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "opportunityUpdated"
+      },
+      "type": "n8n-nodes-base.salesforceTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        -16
+      ],
+      "id": "ad8a3453-1f89-4566-a7dc-6ef73980debc",
+      "name": "Opportunity Updated",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Salesforce - Onboarding Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6181d16e-1498-4cbf-9570-d6ebeb9824cb",
+              "leftValue": "={{ $json.StageName }}",
+              "rightValue": "Closed Won",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        368,
+        -16
+      ],
+      "id": "fc246812-2414-4152-bd2b-8e2850f4542f",
+      "name": "Closed Won Check"
+    },
+    {
+      "parameters": {
+        "resource": "opportunity",
+        "operation": "get",
+        "opportunityId": "={{ $json.Id }}"
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1.1,
+      "position": [
+        144,
+        -16
+      ],
+      "id": "d903bb51-d270-4d80-b3f9-affc10ecd2e6",
+      "name": "Get Opportunity",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Salesforce - Onboarding Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d0755ca6-c7cc-473f-9e36-fa2fc2e45983",
+              "leftValue": "={{ $json.Implementation_Required__c }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        592,
+        -16
+      ],
+      "id": "1c870afb-9e89-43c4-b517-48d17ad656ff",
+      "name": "Implementation Required Check"
+    },
+    {
+      "parameters": {
+        "resource": "search",
+        "query": "=SELECT Id, Name, Email, Account.Name, Account.Industry, Account.Customer_Segment__c FROM Contact WHERE AccountId = '{{ $json.AccountId }}' ORDER BY CreatedDate ASC LIMIT 1"
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1.1,
+      "position": [
+        816,
+        -16
+      ],
+      "id": "37565a99-6ffe-4388-ae3e-73bc5754bcdf",
+      "name": "Get Contact and Account",
+      "alwaysOutputData": true,
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Salesforce - Onboarding Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const opp = $('Get Opportunity').item.json;\nconst c = $input.item.json || {};\nconst acct = c.Account || {};\nconst clean = v => (typeof v === 'string' ? v.trim() : v);\n\nconst data = {\n  opportunityId: opp.Id,\n  opportunityName: clean(opp.Name),\n  amount: opp.Amount,\n  closeDate: opp.CloseDate,\n  products: clean(opp.Products__c),\n  implementationRequired: opp.Implementation_Required__c === true,\n  csm: clean(opp.CSM__c),\n  onboardingStatus: opp.Onboarding_Status__c || 'Not Started',\n  accountId: opp.AccountId,\n  accountName: clean(acct.Name),\n  industry: acct.Industry || null,\n  customerSegment: acct.Customer_Segment__c || null,\n  contactName: clean(c.Name),\n  contactEmail: clean(c.Email),\n};\n\nconst missing = [];\nif (!data.opportunityName) missing.push('Opportunity');\nif (!data.accountName) missing.push('Account');\nif (!data.contactName) missing.push('Contact');\nif (!data.contactEmail) missing.push('Contact email');\nelse if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(data.contactEmail)) missing.push('Valid contact email');\nif (!data.products) missing.push('Products');\nif (!data.csm) missing.push('CSM');\n\nreturn { json: { ...data, missingFields: missing, isValid: missing.length === 0 } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -16
+      ],
+      "id": "98bc6a1c-8c67-441f-b951-fd89d404800a",
+      "name": "Validate Required Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9a697f2c-5f92-4490-8b50-05174b538133",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1264,
+        -16
+      ],
+      "id": "9b94592e-2eeb-4152-99f3-cde9d46ff1a1",
+      "name": "Data Valid?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "bf380203-ada7-4678-826e-d8abaddec803",
+              "leftValue": "={{ $json.onboardingStatus }}",
+              "rightValue": "Welcome Email Sent",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1488,
+        -80
+      ],
+      "id": "0c3de5c2-2dcf-4e50-b536-fee38ada5684",
+      "name": "Not Already Sent?"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Write the welcome email body using ONLY these facts.\n\nCustomer: {{ $json.accountName }}\nContact first name: {{ $json.contactName.split(' ')[0] }}\nProducts purchased: {{ $json.products }}\nCustomer Success Manager (onboarding owner): {{ $json.csm }}\n\nThe email must include: a greeting by first name, a short welcome, a mention of every product listed above, an introduction of the CSM as the person guiding their onboarding, a simple next step (reply to this email with questions or good times to connect), and a friendly closing signed \"The Customer Success Team\"."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "systemMessage": "=You write customer onboarding welcome emails. Use only the facts you are given. Never invent or mention products, dates, deadlines, people, features, pricing, contract terms, links, meetings, or commitments. Never mention the deal amount. Tone: professional, friendly, conversational, concise, under 150 words. Output only the email body as plain text. No subject line, no markdown, no placeholders."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1712,
+        -80
+      ],
+      "id": "ff311616-e2a7-4bee-9769-ee29c92bd64b",
+      "name": "Draft Welcome Email",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const base = $('Validate Required Data').item.json;\nconst j = $input.item.json;\nconst body = String(\n  j.content?.parts?.[0]?.text ?? j.candidates?.[0]?.content?.parts?.[0]?.text ?? j.text ?? ''\n).trim();\n\nconst problems = [];\nconst lower = body.toLowerCase();\nif (body.length < 100) problems.push('Draft empty or too short');\nif (body.length > 1500) problems.push('Draft too long');\nif (!lower.includes(base.contactName.split(' ')[0].toLowerCase())) problems.push('Contact name missing');\nif (!lower.includes(base.csm.toLowerCase())) problems.push('CSM name missing');\nbase.products.split('+').map(p => p.trim().toLowerCase()).filter(Boolean)\n  .forEach(p => { if (!lower.includes(p)) problems.push('Product missing: ' + p); });\nif (/\\$\\s?\\d|\\d+\\s?%|https?:\\/\\//i.test(body)) problems.push('Contains amount, percentage or link');\n\nreturn { json: {\n  ...base,\n  emailSubject: `Welcome to ${base.products} - Next Steps`,\n  emailBody: body,\n  aiValid: problems.length === 0,\n  aiProblems: problems\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        -160
+      ],
+      "id": "218a839a-4f84-4b2e-a9ef-641833a57115",
+      "name": "Check AI Draft"
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "onboarding-approvals",
+          "mode": "name"
+        },
+        "message": "=*New onboarding email ready for review*\n*Customer:* {{ $json.accountName }}\n*Opportunity:* {{ $json.opportunityName }}\n*Products:* {{ $json.products }}\n*Contact:* {{ $json.contactName }} ({{ $json.contactEmail }})\n*CSM:* {{ $json.csm }}\n*AI check:* {{ $json.aiValid ? 'Passed' : 'FAILED - ' + $json.aiProblems.join(', ') }}\n\n*Subject:* {{ $json.emailSubject }}\n\n{{ $json.emailBody }}\n\nClick *Approve* to send this email to the customer, or *Disapprove* to cancel. Nothing is sent until you approve.",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        2512,
+        -224
+      ],
+      "id": "b79642b6-2179-46c2-b132-5155a29efeca",
+      "name": "Slack Approval Request",
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "156fdad3-045d-4d0e-889f-26ba15d8a371",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2736,
+        -224
+      ],
+      "id": "4b47cb2d-cd29-4d3e-8b52-ce0eb919da94",
+      "name": "Approval Check"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Check AI Draft').item.json.contactEmail }}",
+        "subject": "={{ $('Check AI Draft').item.json.emailSubject }}",
+        "emailType": "text",
+        "message": "={{ $('Check AI Draft').item.json.emailBody }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "Customer Success Team"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2960,
+        -304
+      ],
+      "id": "9b65a7d5-a319-4262-ad89-ae3bf58329d9",
+      "name": "Send Welcome Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "opportunity",
+        "operation": "update",
+        "opportunityId": "={{ $('Check AI Draft').item.json.opportunityId }}",
+        "updateFields": {
+          "customFieldsUi": {
+            "customFieldsValues": [
+              {
+                "fieldId": "Onboarding_Status__c",
+                "value": "Welcome Email Sent"
+              },
+              {
+                "fieldId": "Welcome_Email_Sent_Date__c",
+                "value": "={{ $now.toUTC().toISO() }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1.1,
+      "position": [
+        3184,
+        -400
+      ],
+      "id": "317cd846-919d-4410-9609-d054aedf862a",
+      "name": "Mark Welcome Email Sent",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Salesforce - Onboarding Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "98338a2a-9aa2-46b1-929b-9433f3b1eec0",
+              "leftValue": "={{ $json.aiValid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2288,
+        -160
+      ],
+      "id": "55dc6217-5b82-4de8-9822-06b6d963b041",
+      "name": "AI Draft OK?"
+    },
+    {
+      "parameters": {
+        "resource": "opportunity",
+        "operation": "update",
+        "opportunityId": "={{ $('Check AI Draft').item.json.opportunityId }}",
+        "updateFields": {
+          "customFieldsUi": {
+            "customFieldsValues": [
+              {
+                "fieldId": "Onboarding_Status__c",
+                "value": "Email Failed"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1.1,
+      "position": [
+        3184,
+        -208
+      ],
+      "id": "f98ab655-cae1-4fe9-9437-4da9d2e2843a",
+      "name": "Mark Email Failed",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Salesforce - Onboarding Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $input.item.json;\nconst base = $('Validate Required Data').item.json;\nlet exceptionType, reason, action;\n\nif ($('Mark Email Failed').isExecuted) {\n  exceptionType = 'Gmail send failed';\n  reason = 'The approved email could not be sent. Onboarding Status set to Email Failed.';\n  action = 'Check the Gmail credential and the n8n execution, then re-trigger.';\n} else if ($('Slack Approval Request').isExecuted) {\n  exceptionType = 'Draft rejected';\n  reason = 'The reviewer disapproved the draft. No email was sent.';\n  action = 'Review the customer data, then re-trigger if needed.';\n} else if ($('Check AI Draft').isExecuted) {\n  exceptionType = 'AI draft failed checks';\n  reason = (j.aiProblems || []).join(', ');\n  action = 'Write the welcome email manually or re-trigger.';\n} else if ($('Draft Welcome Email').isExecuted) {\n  exceptionType = 'Gemini failed';\n  reason = 'Gemini did not produce a draft.';\n  action = 'Check the Gemini credential, then re-trigger.';\n} else {\n  exceptionType = 'Missing required data';\n  reason = 'Missing: ' + (j.missingFields || []).join(', ');\n  action = 'Fix the Salesforce record. Saving it again re-triggers the workflow.';\n}\n\nreturn { json: { ...base, exceptionType, reason, action } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3408,
+        64
+      ],
+      "id": "5cb97d65-7502-4167-afe1-a6d916a86588",
+      "name": "Build Exception Report"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "onboarding-approvals",
+          "mode": "name"
+        },
+        "text": "=:warning: *Onboarding automation exception*\n*Type:* {{ $json.exceptionType }}\n*Opportunity:* {{ $json.opportunityName }} ({{ $json.accountName }})\n*Reason:* {{ $json.reason }}\n*Action needed:* {{ $json.action }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        3632,
+        64
+      ],
+      "id": "09748db7-3b54-4669-ae5a-439ecba95694",
+      "name": "Notify Exception",
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Opportunity Updated": {
+      "main": [
+        [
+          {
+            "node": "Get Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Opportunity": {
+      "main": [
+        [
+          {
+            "node": "Closed Won Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Closed Won Check": {
+      "main": [
+        [
+          {
+            "node": "Implementation Required Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Implementation Required Check": {
+      "main": [
+        [
+          {
+            "node": "Get Contact and Account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Contact and Account": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Data": {
+      "main": [
+        [
+          {
+            "node": "Data Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Valid?": {
+      "main": [
+        [
+          {
+            "node": "Not Already Sent?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Exception Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Already Sent?": {
+      "main": [
+        [
+          {
+            "node": "Draft Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Check AI Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Exception Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check AI Draft": {
+      "main": [
+        [
+          {
+            "node": "AI Draft OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Approval Request": {
+      "main": [
+        [
+          {
+            "node": "Approval Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Check": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Exception Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Welcome Email Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Email Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Draft OK?": {
+      "main": [
+        [
+          {
+            "node": "Slack Approval Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Exception Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Email Failed": {
+      "main": [
+        [
+          {
+            "node": "Build Exception Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Exception Report": {
+      "main": [
+        [
+          {
+            "node": "Notify Exception",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "nodeGroups": [],
+  "tags": []
+}

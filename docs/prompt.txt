@@ -1,0 +1,8 @@
+Write the welcome email body using ONLY these facts.
+
+Customer: {{ $json.accountName }}
+Contact first name: {{ $json.contactName.split(' ')[0] }}
+Products purchased: {{ $json.products }}
+Customer Success Manager (onboarding owner): {{ $json.csm }}
+
+The email must include: a greeting by first name, a short welcome, a mention of every product listed above, an introduction of the CSM as the person guiding their onboarding, a simple next step (reply to this email with questions or good times to connect), and a friendly closing signed "The Customer Success Team".
